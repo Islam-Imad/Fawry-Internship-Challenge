@@ -120,25 +120,30 @@ public:
 class WeightVisitor : public ProductVisitor
 {
 private:
-    double totalWeight;
+    double weight;
 
 public:
-    WeightVisitor() : totalWeight(0.0) {}
+    WeightVisitor() : weight(0.0) {}
     void visit(Product *product) override
     {
-        // nothing to do here bro :)
+        weight = 0;
     }
     void visit(WeightedProduct *product) override
     {
-        totalWeight += product->getWeight();
+        weight = product->getWeight();
     }
     void visit(ExpirableProduct *product) override
     {
-        // nothing to do here bro :)
+        weight = 0;
     }
     void visit(WeightedExpirableProduct *product) override
     {
-        totalWeight += product->getWeight();
+        weight = product->getWeight();
+    }
+
+    double getWeight() const
+    {
+        return weight;
     }
 };
 
@@ -184,23 +189,40 @@ public:
     {
         expired = 0;
     }
+
+    bool isExpired() const
+    {
+        return expired == 1;
+    }
 };
 
 class Cart
 {
 private:
     vector<pair<Product *, int>> products;
+    string currentDate;
 
 public:
+    Cart(string currentDate = "2023-10-01") : currentDate(currentDate) {}
     bool addProduct(Product *product, int requestedQuantity)
     {
         if (product->checkAvailableQuantity(requestedQuantity))
         {
             products.push_back(make_pair(product, requestedQuantity));
+            ExpiryVisitor expiryVisitor(currentDate);
+            product->accept(&expiryVisitor);
+            if (expiryVisitor.isExpired())
+            {
+                cout << "Product is expired: " << product->getName() << endl;
+                return false;
+            }
             return true;
         }
-        cout << "Requested quantity exceeds available quantity for product: " << product->getName() << endl;
-        return false;
+        else
+        {
+            cout << "Requested quantity exceeds available quantity for product: " << product->getName() << endl;
+            return false;
+        }
     }
 
     double getTotal() const
@@ -235,6 +257,18 @@ public:
 
     void printCart() const
     {
+        double totalWeight = 0.0;
+        WeightVisitor weightVisitor;
+        cout << "quantity   product   unit_weight   total_weight\n";
+        for (const auto &[product, quantity] : products)
+        {
+            product->accept(&weightVisitor);
+            double weight = weightVisitor.getWeight();
+            totalWeight += weight * quantity;
+            cout << quantity << "x " << product->getName() << "   " << weight << "   " << (weight * quantity) << "\n";
+        }
+        cout << "Total Weight: " << totalWeight << "\n";
+        cout << "****************************\n";
         cout << "quantity   product   unit_price   sub_total\n";
         for (const auto &[product, quantity] : products)
         {
@@ -253,6 +287,11 @@ public:
             product->consume_quantity(quantity);
         }
         products.clear();
+    }
+
+    int countItems() const
+    {
+        return products.size();
     }
 };
 
@@ -288,6 +327,11 @@ public:
 
 int checkout(Cart &cart, Customer &customer)
 {
+    if (cart.countItems() == 0)
+    {
+        cout << "Cart is empty for customer: " << customer.getName() << "\n";
+        return 0;
+    }
     double total = cart.getTotal();
     if (customer.canAfford(total))
     {
@@ -326,15 +370,15 @@ void test_1()
 
 void test_2()
 {
-    Product cheese("Cheese", 10.0, 0.1, 100);
-    Product milk("Milk", 2.0, 0.02, 200);
-    Product scratchCard("ScratchCard", 5.0, 0.05, 50);
+    WeightedExpirableProduct cheese("Cheese", 10.0, 0.1, 100, 0.5, "2023-10-15");
+    WeightedExpirableProduct milk("Milk", 2.0, 0.02, 200, 0.3, "2023-10-20");
+    WeightedExpirableProduct scratchCard("ScratchCard", 5.0, 0.05, 50, 0.1, "2023-10-25");
 
     Cart cart;
     bool valid_operation = true;
-    valid_operation &= cart.addProduct(&cheese, 200);
+    valid_operation &= cart.addProduct(&cheese, 10);
     valid_operation &= cart.addProduct(&milk, 3);
-    valid_operation &= cart.addProduct(&scratchCard, 60);
+    valid_operation &= cart.addProduct(&scratchCard, 6);
 
     if (!valid_operation)
     {
@@ -342,7 +386,7 @@ void test_2()
         return;
     }
 
-    Customer customer("John Doe", 50.0);
+    Customer customer("John Doe", 1000.0);
     checkout(cart, customer);
 }
 
