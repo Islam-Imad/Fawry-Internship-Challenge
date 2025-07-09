@@ -6,6 +6,14 @@ class WeightedProduct;
 class ExpirableProduct;
 class WeightedExpirableProduct;
 
+enum class ProductType
+{
+    Regular,
+    Weighted,
+    Expirable,
+    WeightedExpirable
+};
+
 class ProductVisitor
 {
 public:
